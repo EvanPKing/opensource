@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>5人阿瓦隆 (DeepSeek Bot)</title>
+  <style>
+    body { font-family: "Microsoft YaHei", sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background: #f0f2f5; }
+    
+    /* 通用板块样式 */
+    .game-section {
+      background: white;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border-left: 5px solid #ccc; /* 默认灰色 */
+    }
+
+    /* 板块特定颜色 */
+    #section-1-identity { border-left-color: #1890ff; } /* 蓝 */
+    #section-2-speech   { border-left-color: #faad14; } /* 黄 */
+    #section-3-log      { border-left-color: #52c41a; } /* 绿 */
+    #section-4-gameplay { border-left-color: #722ed1; } /* 紫 */
+    #section-5-assassin { border-left-color: #f5222d; } /* 红 */
+
+    h2 { margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+    h2 span { font-size: 0.8em; color: #666; font-weight: normal; margin-left: 10px; }
+    
+    .hidden { display: none; }
+    
+    button { cursor: pointer; padding: 8px 16px; margin-right: 10px; border: none; border-radius: 4px; font-weight: bold; }
+    button.primary { background: #1890ff; color: white; }
+    button.danger { background: #ff4d4f; color: white; }
+    button.success { background: #52c41a; color: white; }
+    button:disabled { background: #d9d9d9; cursor: not-allowed; }
+
+    input[type="text"] { padding: 8px; width: 60%; border: 1px solid #ddd; border-radius: 4px; }
+
+    /* 状态条 */
+    .status-bar {
+      display: flex;
+      gap: 20px;
+      background: #fafafa;
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      font-size: 0.9rem;
+    }
+    .status-item { font-weight: bold; }
+    .status-item span { color: #1890ff; font-weight: normal; margin-left: 5px; }
+
+    /* 列表样式 */
+    ul { list-style: none; padding: 0; }
+    li { padding: 5px 0; }
+    
+    .speech-bubble {
+      background: #f9f9f9;
+      border: 1px solid #eee;
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 8px; }
+    .speech-bubble strong { color: #333; }
+    .speech-bubble .role-tag { font-size: 0.8em; color: #999; margin-left: 5px; }
+
+    .player-checkbox { display: inline-block; margin-right: 15px; padding: 5px 10px; background: #f0f0f0; border-radius: 4px; cursor: pointer; }
+    .player-checkbox input { margin-right: 5px; }
+    
+    #private-info-box {
+      background: #e6f7ff;
+      border: 1px solid #91d5ff;
+      padding: 10px;
+      border-radius: 4px;
+      color: #0050b3;
+      margin-top: 10px;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+
+  <h1 style="text-align: center; color: #333;">
+    Avalon 5人局 
+    <button onclick="resetGame()" style="font-size: 0.6em; padding: 4px 8px; margin-left: 10px; background: #999; color: white;">重置 / 新一局</button>
+  </h1>
+
+  <!-- 1. 选择身份 -->
+  <div id="section-1-identity" class="game-section">
+    <h2>1. 身份选择 <span>游戏开始前</span></h2>
+    <div id="setup-controls">
+      <label>我想扮演：</label>
+      <select id="humanRoleSelect" style="padding: 5px;">
+        <option value="MERLIN">梅林 (蓝方核心)</option>
+        <option value="PERCIVAL">派西维尔 (蓝方)</option>
+        <option value="SERVANT">忠臣 (蓝方)</option>
+        <option value="MORGANA">莫甘娜 (红方)</option>
+        <option value="ASSASSIN">刺客 (红方)</option>
+      </select>
+      <button class="primary" onclick="startGame()">开始游戏</button>
+    </div>
+    
+    <!-- 私有情报显示区 -->
+    <div id="private-info-box" class="hidden">
+      <strong>你的秘密情报：</strong>
+      <div id="privateInfoText"></div>
+    </div>
+  </div>
+
+  <!-- 2. 发言阶段 -->
+  <div id="section-2-speech" class="game-section hidden">
+    <h2>2. 发言阶段 <span>轮流发言</span></h2>
+    <div id="speech-controls">
+      <input type="text" id="humanSpeechInput" placeholder="输入你的发言（或者留空）...">
+      <button class="primary" onclick="humanSpeak()">我发言 & 让机器人接着说</button>
+    </div>
+  </div>
+
+  <!-- 3. 发言记录 -->
+  <div id="section-3-log" class="game-section hidden">
+    <h2>3. 发言记录 <span>Bot & You</span></h2>
+    <div id="speech-log" style="max-height: 200px; overflow-y: auto;">
+      <div style="color: #999; font-style: italic;">暂无发言...</div>
+    </div>
+  </div>
+
+  <!-- 4. 组队与投票 -->
+  <div id="section-4-gameplay" class="game-section hidden">
+    <h2>4. 组队与投票 <span>核心流程</span></h2>
+    
+    <!-- 关键状态放在这里 -->
+    <div class="status-bar">
+      <div class="status-item">第 <span id="round-display">-</span> 轮</div>
+      <div class="status-item">本轮需 <span id="team-size-display">-</span> 人</div>
+      <div class="status-item">当前队长: <span id="leader-display">-</span></div>
+      <div class="status-item">任务战况: <span id="score-display">0 胜 0 负</span></div>
+    </div>
+
+    <!-- 组队区域 -->
+    <div id="team-build-area" class="hidden" style="margin-bottom: 15px; padding: 10px; background: #fffbe6; border: 1px solid #ffe58f; border-radius: 4px;">
+      <h3 style="margin-top:0; font-size:1rem;">我是队长：请组队</h3>
+      <div id="player-checkboxes"></div>
+      <button class="primary" onclick="humanSubmitTeam()" style="margin-top:10px;">提交队伍</button>
+    </div>
+
+    <div id="bot-team-build-area" class="hidden" style="margin-bottom: 15px;">
+      <button class="primary" onclick="botAutoTeam()">让机器人队长自动组队</button>
+    </div>
+
+    <!-- 投票区域 -->
+    <div id="vote-area" class="hidden" style="margin-bottom: 15px; padding: 10px; background: #e6fffb; border: 1px solid #87e8de; border-radius: 4px;">
+      <h3 style="margin-top:0; font-size:1rem;">对当前队伍投票</h3>
+      <div style="margin-bottom: 5px;"><strong>当前提议队伍：</strong> <span id="current-team-display"></span></div>
+      <button class="success" onclick="humanVote('YES')">同意</button>
+      <button class="danger" onclick="humanVote('NO')">反对</button>
+    </div>
+
+    <!-- 任务出牌区域 -->
+    <div id="mission-area" class="hidden" style="margin-bottom: 15px; padding: 10px; background: #fff0f6; border: 1px solid #ffadd2; border-radius: 4px;">
+      <h3 style="margin-top:0; font-size:1rem;">执行任务出牌</h3>
+      <p style="font-size:0.9em; color:#666;">蓝方只能出成功；红方可选失败。</p>
+      <button class="success" onclick="humanPlayCard('SUCCESS')">出 成功 (SUCCESS)</button>
+      <button class="danger" onclick="humanPlayCard('FAIL')">出 失败 (FAIL)</button>
+    </div>
+
+    <!-- 机器人投票结果展示 -->
+    <div id="vote-result-area" class="hidden" style="margin-bottom: 15px; padding: 10px; background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 4px;">
+      <h3 style="margin-top:0; font-size:1rem;">最近一轮投票结果</h3>
+      <ul id="vote-result-list"></ul>
+    </div>
+
+    <!-- 历史任务结果表 -->
+    <div id="mission-history-area" style="margin-top: 10px;">
+      <h3 style="margin-top:0; font-size:1rem;">所有任务历史</h3>
+      <table style="width:100%; border-collapse: collapse; font-size: 0.9rem;">
+        <thead>
+          <tr style="background:#fafafa;">
+            <th style="border:1px solid #eee; padding:4px;">轮次</th>
+            <th style="border:1px solid #eee; padding:4px;">队伍</th>
+            <th style="border:1px solid #eee; padding:4px;">结果</th>
+          </tr>
+        </thead>
+        <tbody id="mission-history-body">
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 5. 刺杀阶段 -->
+  <div id="section-5-assassin" class="game-section hidden">
+    <h2>5. 刺杀阶段 <span>红方最后机会</span></h2>
+    <div id="assassin-controls">
+      <p>蓝方已完成3个任务。如果你是刺客，请选择刺杀目标：</p>
+      <input type="text" id="assassinTarget" placeholder="输入目标ID (例如 BOT_1)">
+      <button class="danger" onclick="humanAssassinate()">执行刺杀</button>
+    </div>
+    <div id="bot-assassin-controls" class="hidden">
+      <p>刺客是机器人，正在思考...</p>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
