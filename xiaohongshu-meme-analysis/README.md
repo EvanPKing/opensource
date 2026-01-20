@@ -213,8 +213,8 @@ MIT License
 
 ## 👥 作者
 
-- 开发者: Your Name
-- 邮箱: your.email@example.com
+- 开发者: Mr 派
+- 邮箱: shenghaow95@gmail.com
 
 ## 🙏 致谢
 
